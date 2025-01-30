@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify to YouTube Transfer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .auth-button {
+            transition: transform 0.2s;
+        }
+        .auth-button:hover {
+            transform: translateY(-2px);
+        }
+        .status-banner {
+            transition: all 0.3s ease;
+            transform: translateY(-100%);
+        }
+        .status-banner.show {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Status Banner -->
+        <div id="transfer-status" class="fixed top-0 left-0 right-0 z-50 hidden">
+            <div class="container mx-auto px-4">
+                <div class="my-4"></div>
+            </div>
+        </div>
+
+        <h1 class="text-4xl font-bold text-center mb-8 text-gray-800">Spotify to YouTube Transfer</h1>
+        
+        <!-- Authentication Status -->
+        <div class="flex justify-end mb-8 space-x-4">
+            <div id="spotify-status" class="bg-white rounded-lg p-4 shadow-md w-64">
+                <h2 class="text-xl font-semibold mb-4">Spotify</h2>
+                <button onclick="window.location.href='/login'" class="auth-button bg-green-500 text-white px-6 py-2 rounded-full w-full hover:bg-green-600">
+                    Login with Spotify
+                </button>
+            </div>
+            
+            <div id="youtube-status" class="bg-white rounded-lg p-4 shadow-md w-64">
+                <h2 class="text-xl font-semibold mb-4">YouTube</h2>
+                <button onclick="window.location.href='/youtube/login'" class="auth-button bg-red-500 text-white px-6 py-2 rounded-full w-full hover:bg-red-600">
+                    Login with YouTube
+                </button>
+            </div>
+        </div>
+
+        <!-- Playlists Section -->
+        <div id="playlists-section" class="bg-white rounded-lg p-6 shadow-md hidden">
+            <h2 class="text-2xl font-semibold mb-4">Your Spotify Playlists</h2>
+            <div id="playlists-list" class="space-y-4">
+                <!-- Playlists will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let spotifyAuthenticated = false;
+        let youtubeAuthenticated = false;
+
+        function showStatusBanner(message, type = 'info') {
+            const statusDiv = document.getElementById('transfer-status');
+            const bgColor = type === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 
+                           type === 'error' ? 'bg-red-100 border-red-400 text-red-700' :
+                           'bg-blue-100 border-blue-400 text-blue-700';
+
+            statusDiv.innerHTML = `
+                <div class="container mx-auto px-4">
+                    <div class="status-banner ${bgColor} border px-4 py-3 rounded relative shadow-md my-4">
+                        ${message}
+                        <button onclick="hideStatusBanner()" class="absolute top-0 bottom-0 right-0 px-4 py-3">
+                            <svg class="fill-current h-6 w-6" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                <title>Close</title>
+                                <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>`;
+            statusDiv.classList.remove('hidden');
+            setTimeout(() => {
+                statusDiv.querySelector('.status-banner').classList.add('show');
+            }, 100);
+        }
+
+        function hideStatusBanner() {
+            const statusDiv = document.getElementById('transfer-status');
+            const banner = statusDiv.querySelector('.status-banner');
+            banner.classList.remove('show');
+            setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, 300);
+        }
+
+        // Check authentication status and load playlists
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth-status');
+                const status = await response.json();
+                spotifyAuthenticated = status.spotify;
+                youtubeAuthenticated = status.youtube;
+
+                updateAuthUI();
+                if (spotifyAuthenticated) {
+                    loadPlaylists();
+                }
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+            }
+        }
+
+        function updateAuthUI() {
+            const spotifyButton = document.querySelector('#spotify-status button');
+            const youtubeButton = document.querySelector('#youtube-status button');
+
+            if (spotifyAuthenticated) {
+                spotifyButton.textContent = 'Connected to Spotify';
+                spotifyButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+                spotifyButton.classList.add('bg-gray-500', 'cursor-not-allowed');
+            }
+
+            if (youtubeAuthenticated) {
+                youtubeButton.textContent = 'Connected to YouTube';
+                youtubeButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                youtubeButton.classList.add('bg-gray-500', 'cursor-not-allowed');
+            }
+
+            if (spotifyAuthenticated && youtubeAuthenticated) {
+                document.getElementById('playlists-section').classList.remove('hidden');
+            }
+        }
+
+        async function loadPlaylists() {
+            try {
+                const response = await fetch('/playlists');
+                const playlists = await response.json();
+                const playlistsList = document.getElementById('playlists-list');
+                playlistsList.innerHTML = '';
+
+                playlists.forEach(playlist => {
+                    const playlistElement = document.createElement('div');
+                    playlistElement.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100';
+                    playlistElement.innerHTML = `
+                        <div>
+                            <h3 class="font-semibold">${playlist.Name}</h3>
+                            <p class="text-sm text-gray-600">${playlist.Tracks.Total} tracks</p>
+                        </div>
+                        <button onclick="transferPlaylist('${playlist.ID}')" 
+                                class="bg-blue-500 text-white px-4 py-2 rounded-full hover:bg-blue-600 transition-colors">
+                            Transfer to YouTube
+                        </button>
+                    `;
+                    playlistsList.appendChild(playlistElement);
+                });
+            } catch (error) {
+                console.error('Error loading playlists:', error);
+                const playlistsList = document.getElementById('playlists-list');
+                playlistsList.innerHTML = '<p class="text-red-500">Error loading playlists. Please try refreshing the page.</p>';
+            }
+        }
+
+        async function transferPlaylist(playlistId) {
+            if (!youtubeAuthenticated) {
+                showStatusBanner('Please connect to YouTube first', 'error');
+                return;
+            }
+
+            showStatusBanner('Transfer in progress... This may take a few minutes.', 'info');
+            
+            try {
+                const response = await fetch('/transfer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ playlist_id: playlistId }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                showStatusBanner(`
+                    Transfer completed! 
+                    <a href="https://youtube.com/playlist?list=${result.youtube_playlist_id}" 
+                    target="_blank" class="underline">View on YouTube</a>`, 'success');
+            } catch (error) {
+                showStatusBanner(`Error during transfer: ${error.message}`, 'error');
+                console.error('Error transferring playlist:', error);
+            }
+        }
+
+        // Check auth status when page loads
+        checkAuth();
+    </script>
+</body>
+</html> 
